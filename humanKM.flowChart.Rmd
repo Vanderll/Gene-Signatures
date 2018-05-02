@@ -1,0 +1,55 @@
+---
+title: "Validataion Set Flow Chart"
+author: "Lauren Vanderlinden"
+output: html_document
+---
+
+```{r, echo=FALSE, cache=FALSE, include=FALSE}
+rm(list=ls())
+options(stringAsFactors=FALSE)
+
+library(GEOquery)
+library(GEOsearch)
+library(DBI)
+library(RSQLite)
+library(GEOmetadb)
+
+
+
+```
+
+
+### Goal ###
+
+The overall goal of this report is to create a flow chart in how we selected the datasets for human validation for Joe's AR paper.  
+
+```{r, echo=FALSE}
+
+if(!file.exists('GEOmetadb.sqlite')) getSQLiteFile()
+file.info('GEOmetadb.sqlite')
+dbDisconnect(con)
+
+results.1 = list()
+cancerTypes = c("bladder", "breast", "colorectal", "lung", "prostate", "AML")
+
+for(i in 1:length(cancerTypes)){
+  results.1[[i]] = GEOSearchTerm(paste(cancerTypes[i], " cancer", sep=""))
+}
+
+bladder.1 =  GEOSearchTerm("bladder cancer")
+bladder.2 = bladder.1[which(bladder.1$Organism=="Homo sapiens"),]
+arraysWant = c("GPL6102", "GPL570", "GPL571")
+bladder.3 = bladder.2[which(bladder.2$Platform %in% arraysWant),]
+bladder.4 = bladder.3[which(bladder.3$Sample.Number>75),]
+
+
+con <- dbConnect(SQLite(),'GEOmetadb.sqlite')
+geo_tables <- dbListTables(con)
+dbListFields(con,'gse')
+
+breast.1 =  GEOSearchTerm("breast cancer")
+colorectal.1 =  GEOSearchTerm("colorectal cancer")
+prostate.1 =  GEOSearchTerm("prostate cancer")
+lung.1 =  GEOSearchTerm("lung cancer")
+aml.1 =  GEOSearchTerm("aml cancer")
+

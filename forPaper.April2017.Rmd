@@ -1,0 +1,1139 @@
+---
+title: "Theodorescu & Sottnik: AR Paper"
+author: Focus on Bladder & Make Comparisons to Prostate and Breast
+output: html_document
+---
+
+##AR Paper Outline##
+
+This is mostly based on the outline from Joe.  I added in some sections based on our previous discussion, but it might not be the right order.    
+
+```{r include=FALSE, cache=FALSE}
+rm(list=ls())
+library(gplots)
+library(limma)
+library(WGCNA)
+library(affy)
+library(knitr)
+library(VennDiagram)
+library(RColorBrewer)
+library(sva)
+library(survival)
+library(simPH)
+```
+
+###Experimental Design ###
+
+Cartoons of the different experiments.
+
+###1. Bladder ChIP###
+
+**a. Overview Statistics & Comparisons**
+
+```{r, echo=FALSE, warning=FALSE}
+AR_all.v2 = read.table(file="Y:/Sottnik/Data/BC.ChIPseq/AR_allPeaks.BED",sep="\t")
+AR.unique = read.table(file="Y:/Sottnik/Data/BC.ChIPseq/AR_unique.BED",sep="\t")
+
+#make the annotation bed file;
+hg38 = read.table(file="Y:/annotation/ensemblGene.HumanGRCh38.p5.11Mar16.txt", sep="\t", header=TRUE)
+
+chr = paste("chr", hg38$Chromosome.Name, sep="")
+chr = gsub(pattern = "chrMT", replacement = "chrM", chr)
+hgbed = as.data.frame(cbind(chr, hg38$Gene.Start..bp., hg38$Gene.End..bp., hg38$Ensembl.Gene.ID))
+
+#write.table(hgbed, file="Y:/annotation/ensemblGene.hg38.p5.bed", sep="\t", col.names=FALSE, row.names=FALSE, quote=FALSE)
+
+```
+
+There are **5** AR samples and **4 ** control samples.  Data are aligned 
+
+Originally, there are **`r prettyNum(nrow(AR_all.v2), big.mark=",")`** peaks in AR treatment and after filtering out overlapping control peaks there are **`r prettyNum(nrow(AR.unique), big.mark=",")`** peaks.  Note, this does NOT represent the number of unique genes.
+
+```{r, echo=FALSE, warning=FALSE}
+AR.unique.wAnno = read.table(file="Y:/Sottnik/Data/BC.ChIPseq/AR.unique.wAnno.bed",sep="\t")
+bc.AR.unique.genes = unique(AR.unique.wAnno[,4])
+```
+
+There are **`r prettyNum(length(bc.AR.unique.genes), big.mark=",")`** unique gene IDs that are present in the AR treatment and absent in the controls.
+
+**TO DO:** Genome wide picture of UCSC genome browser, 2 tracks: 1881 treated and control.  
+
+**Debashis:** Have you seen genome-wide pile up tracks?  The largest I've seen is in a specific chromosome.  I could make a figure for each chromosome and then append.  Thoughts?
+
+**b.  Motif Analysis**
+
+Checked out a bunch of programs.  I ran RSAT looking at motifs 6 or 7 nt long, using:
+
+**1. Oligonucleotide analysis:** Calculates oligonucleotide occurrences in a set of sequences, and detects overrepresented oligonucleotides.
+
+**2. Position analysis:** Calculates the positional distribution of oligonucleotides in a set of sequences, and detects those which significantly discard from a homogeneous distribution.
+
+Says "This program is useful for detecting patterns with a positional bias, in large sets of sequences (e.g. a few hundreds or thousands of sequences) aligned on some referencce (e.g. the start codon). Significant patterns are not likely to be found in smaller sequence sets. This tools is thus typically designed for pattern discovery in full genomes rather than for small fmilies of co-expressed genes."
+
+**Question for Debashis:**  I'm really not grasping the difference.  However, I do feel comfortable reporting the 1st motif from both analyses as the motifs are consistent.  
+
+Confident About: 
+
+![](C:\Users\vanderll\Documents\Sottnik\BC.ChIP\motif\oligos.6nt.mkv4.m1.png)
+
+The 6nt Results:
+
+![](C:\Users\vanderll\Documents\Sottnik\BC.ChIP\motif\Motifs.6nt.png)
+
+The 7nt Results:
+
+![](C:\Users\vanderll\Documents\Sottnik\BC.ChIP\motif\Motifs.7nt.png)
+
+**c. enrichment analysis**
+
+TO DO!  Only on the candidates from the ChIP results.  
+
+**d. Multi-Cancer ChIP-Seq Compare**
+
+Combine all prostate datasets (Decker AD, Decker AI, and Cramer), along with all breast candidates.  For the breast ChIP-seq I have Meyer and Brown complete.  Running alignment and MACS on Carroll and Richer.  
+
+```{r, echo=FALSE, warning=FALSE}
+#bladder chip sig;
+load(file="Y:/Sottnik/Reports/v1.analysis/bladderCancer.RNA.ChIP.3wayVenn.Rdata")
+bladder.chip.sig = rownames(forVenn.1[which(forVenn.1[,2]==TRUE),])
+
+#prostate chip sig;
+prostate.ad.wAnno = read.table(file="Y:/Sottnik/Data/PC.ChIPseq.Decker.fromJoe/ad.chip.wAnno.bed",sep="\t")
+prostate.ad.chip.unique = unique(prostate.ad.wAnno[,4])
+
+prostate.ai.wAnno = read.table(file="Y:/Sottnik/Data/PC.ChIPseq.Decker.fromJoe/ai.chip.wAnno.bed",sep="\t")
+prostate.ai.chip.unique = unique(prostate.ai.wAnno[,4])
+
+cramer.chip.sig = read.table(file="Y:/Sottnik/Data/ProstateCancer.Cramer/data.ChIP/cramer.chip.sig.bothGeneSymbol.ensembl.txt", sep="\t",header=TRUE)
+cramer.chip.sig.ensembl = unique(cramer.chip.sig[,1])
+
+prostate.chip.sig = unique(c(as.matrix(prostate.ad.chip.unique),as.matrix(prostate.ai.chip.unique), as.matrix(cramer.chip.sig.ensembl)))
+
+#breast chip sig;
+brown.chip = read.table(file="Y:/Sottnik/Data/BreastCancer.Brown/GSM712805_M453_16h_AR_p05fdr20_wAnno.BED", sep="\t")
+brown.chip.sig = as.matrix(unique(brown.chip[,4]))
+
+
+#meyer.dht.chip = read.table(file="Y:/Sottnik/Data/BreastCancer.Meyer/data/processed/GSE74069_AR_ChIP_DHT_4hrs_strigent_peaks.txt", sep="\t")
+
+#meyer.chip.bed = meyer.dht.chip[,1:3]
+#meyer.chip.bed$V4 = "."
+#write.table(meyer.chip.bed, file="Y:/Sottnik/Data/BreastCancer.Meyer/data/processed/AR_DHT.bed", sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+
+#perform a liftover to hg38;
+#get annotation with Y:\Sottnik\Data\BreastCancer.Meyer\getAnno.txt
+
+meyer.dht.chip = read.table(file="Y:/Sottnik/Data/BreastCancer.Meyer/data/processed/AR.DHT.wAnno.bed", sep="\t")
+meyer.chip.sig = as.matrix(unique(meyer.dht.chip[,4]))
+
+breast.chip.sig = unique(c(meyer.chip.sig, brown.chip.sig))
+
+
+#### get venn;
+bladderCand  = cbind(bladder.chip.sig, rep("bladder", length(bladder.chip.sig)))
+colnames(bladderCand) = c("Gene", "Bladder")
+
+prostateCand = cbind(prostate.chip.sig, rep("prostate", length(prostate.chip.sig)))
+colnames(prostateCand) = c("Gene", "Prostate")
+
+breastCand = cbind(breast.chip.sig, rep("breast", length(breast.chip.sig)))
+colnames(breastCand) = c("Gene", "Breast")
+
+bothCand = merge(bladderCand, prostateCand, by="Gene", all=TRUE)
+all3Cand = merge(bothCand, breastCand, by="Gene", all=TRUE)
+
+forVenn.2 = matrix(nrow=nrow(all3Cand), ncol=3)
+rownames(forVenn.2) = all3Cand$Gene
+forVenn.2[which(all3Cand[,"Bladder"]=="bladder"),1]=TRUE
+forVenn.2[-which(all3Cand[,"Bladder"]=="bladder"),1]=FALSE
+forVenn.2[which(all3Cand[,"Prostate"]=="prostate"),2]=TRUE
+forVenn.2[-which(all3Cand[,"Prostate"]=="prostate"),2]=FALSE
+forVenn.2[which(all3Cand[,"Breast"]=="breast"),3]=TRUE
+forVenn.2[-which(all3Cand[,"Breast"]=="breast"),3]=FALSE
+colnames(forVenn.2) = c("Bladder", "Prostate" ,"Breast")
+
+a.bladder = vennCounts(forVenn.2)
+
+#save(forVenn.1, file="Y:/Sottnik/Reports/v1.analysis/bladderCancer.RNA.ChIP.3wayVenn.Rdata")
+
+#head(forVenn.1)
+#write.table(rownames(forVenn.1[which(forVenn.1[,"BC.Array"]=="TRUE"&forVenn.1[,"BC.ChIPseq"]==TRUE),]), file="Y:/Sottnik/Reports/v1.analysis/BC.both.RNA.ChIP.txt", sep="\t", col.names=FALSE, row.names=FALSE, quote=FALSE)
+```
+
+```{r,fig.height=8, fig.width=8, echo=FALSE}
+#head(a)
+vennDiagram(a.bladder, circle.col=c("red", "blue", "green"), counts.col="black", main="ChIP-Seq Candidates")
+```
+
+
+
+###2. Bladder Affy###
+
+**a. Overview Statistics & Comparisons**
+
+```{r, echo=FALSE, warning=FALSE}
+load(file="Y:/Sottnik/Data/BC.array/control.v1881.regressionResults.Rdata")
+bc.diffExprPS = read.table(file="Y:/Sottnik/Data/BC.array/diffExp.probesets.txt",sep="\t")
+
+sig = ctrl.v1881.results[which(ctrl.v1881.results[,"FDR"]<0.05),]
+#load in the ensembl gene IDs that line up with these probesets;
+bc.diffExprPS.unique = read.table(file="Y:/Sottnik/Data/BC.array/diffExpr.geneSymbol2ensembl.txt",sep="\t",header=TRUE)
+```
+
+There are **`r nrow(bc.diffExprPS)`** probesets with significant differential expression between controls and 1881 treatment.  Of those probesets, **`r nrow(sig[which(sig[,"Control.Coef"]>0),])`** are down-regulated and **`r nrow(sig[which(sig[,"Control.Coef"]<0),])`** are up-regulated in the 1881 treatment group.  Once mapped to unqiue gene names (ensembl annotation), there are **`r nrow(bc.diffExprPS.unique)`** unique genes with differential expression.  
+
+**b. Heatmap**
+
+```{r, echo=FALSE, warning=FALSE}
+expr = read.table(file="Y:/Sottnik/DataRaw.2ndDrive/Sequencing Backup/AR CEL Files/rma.summary.txt", sep="\t",row.names=1, header=TRUE)
+treat = sapply(strsplit(colnames(expr), split=".", fixed=TRUE), "[[", 2)
+
+forHeatmap = expr[which(rownames(expr) %in% as.matrix(row.names(sig))), -which(treat=="ENZA")]
+colnames(forHeatmap) = gsub("Sottnik.", "", colnames(forHeatmap))
+
+
+zscore = t(apply(as.matrix(forHeatmap), 1, function(a) (a - mean(a))/sd(a))) 
+my_palette <- colorRampPalette(c("blue", "white", "red"))(n = 299)
+
+heatmap.2(zscore, scale="row", dendrogram="row", trace="none", col=my_palette,labRow = "", main="1881 vs Control",cexCol=0.8)
+```
+
+**c. enrichment analysis**
+
+TO DO!  Only on the candidates from the expression results.  
+
+
+**d. Multi-Cancer Differential Expression Compare**
+
+Combine all prostate datasets (Decker AD, Decker AI, and Cramer), along with all breast candidates.  For the breast differential expression, we have Brownand Carroll with data.  Meyer and Richer don't have expression data.    
+ 
+```{r, echo=FALSE, warning=FALSE}
+#bladder chip sig;
+bladder.DE.sig = unique(bc.diffExprPS.unique[,1])
+
+#prostate chip sig;
+prostate.ad = read.table(file="Y:/Sottnik/Data/PC.RNAseq/ad.cand.v1.txt", sep="\t", header=FALSE)
+prostate.ai = read.table(file="Y:/Sottnik/Data/PC.RNAseq/ai.cand.v1.txt", sep="\t", header=FALSE)
+
+cramer = read.table(file="Y:/Sottnik/Data/ProstateCancer.Cramer/data.RNAseq/cramer.sig.ensembl.txt", sep="\t", header=TRUE)
+
+prostate.DE.sig = unique(c(as.matrix(prostate.ad),as.matrix(prostate.ai), as.matrix(cramer)))
+
+#breast chip sig;
+brown = read.table(file="Y:/Sottnik/Data/BreastCancer.Brown/candidate.v1/arrayCandidates.geneToEnsembl.txt", sep="\t",header=TRUE)
+brown.sig = unique(brown[,1])
+
+#carroll.key = read.table(file="Y:/Sottnik/Data/BreastCancer.Carroll/data/microarray/IlluminaArray.annoKey.txt", sep="\t",header=TRUE)
+#carroll.sig = read.table(file="Y:/Sottnik/Data/BreastCancer.Carroll/data/microarray/carrollCand.txt", sep="\t")
+#carroll.sig.symbols = carroll.key[which(carroll.key$Probe_Id %in% as.matrix(carroll.sig)), 1]
+#write.table(carroll.sig.symbols, file="Y:/Sottnik/Data/BreastCancer.Carroll/data/microarray/carrollCand.geneSymbols.txt", sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+###NEED TO WORK ON GETTING THE ENSEMBL IDs.  ;
+
+#source("http://bioconductor.org/biocLite.R")
+#biocLite("biomaRt")
+#library(biomaRt)
+#grch37 = useEnsembl(biomart="ensembl",GRCh=37)
+#listDatasets(grch37)[10:13,]
+#ensembl78 = useEnsembl(biomart="ensembl",version=78)
+#ensembl = useEnsembl(biomart="ensembl", dataset="hsapiens_gene_ensembl", version=78)
+#hgnc_swissprot <- getBM(attributes=c('ensembl_gene_id','ensembl_transcript_id','hgnc_symbol','hgnc_id','uniprot_swissprot'),filters = 'hgnc_symbol', values = as.matrix(carroll.sig.symbols), mart = ensembl)
+
+#carroll.sig = unique(hgnc_swissprot$ensembl_gene_id)
+#write.table(carroll.sig, file="Y:/Sottnik/Data/BreastCancer.Carroll/data/microarray/carrollCand.uniqueEnsemblIDs.txt", sep="\t", row.names=FALSE, col.names=FALSE, quote=FALSE)
+
+carroll.sig = read.table(file="Y:/Sottnik/Data/BreastCancer.Carroll/data/microarray/carrollCand.uniqueEnsemblIDs.txt", sep="\t")
+
+breast.DE.sig = unique(c(as.matrix(brown.sig), as.matrix(carroll.sig)))
+
+#### get venn;
+bladderCand  = cbind(as.matrix(bladder.DE.sig), rep("bladder", length(bladder.DE.sig)))
+colnames(bladderCand) = c("Gene", "Bladder")
+
+prostateCand = cbind(as.matrix(prostate.DE.sig), rep("prostate", length(prostate.DE.sig)))
+colnames(prostateCand) = c("Gene", "Prostate")
+
+breastCand = cbind(as.matrix(breast.DE.sig), rep("breast", length(breast.DE.sig)))
+colnames(breastCand) = c("Gene", "Breast")
+
+bothCand = merge(bladderCand, prostateCand, by="Gene", all=TRUE)
+all3Cand = merge(bothCand, breastCand, by="Gene", all=TRUE)
+
+forVenn.2 = matrix(nrow=nrow(all3Cand), ncol=3)
+rownames(forVenn.2) = all3Cand$Gene
+forVenn.2[which(all3Cand[,"Bladder"]=="bladder"),1]=TRUE
+forVenn.2[-which(all3Cand[,"Bladder"]=="bladder"),1]=FALSE
+forVenn.2[which(all3Cand[,"Prostate"]=="prostate"),2]=TRUE
+forVenn.2[-which(all3Cand[,"Prostate"]=="prostate"),2]=FALSE
+forVenn.2[which(all3Cand[,"Breast"]=="breast"),3]=TRUE
+forVenn.2[-which(all3Cand[,"Breast"]=="breast"),3]=FALSE
+colnames(forVenn.2) = c("Bladder", "Prostate" ,"Breast")
+
+a.bladder = vennCounts(forVenn.2)
+
+#save(forVenn.1, file="Y:/Sottnik/Reports/v1.analysis/bladderCancer.RNA.ChIP.3wayVenn.Rdata")
+
+#head(forVenn.1)
+#write.table(rownames(forVenn.1[which(forVenn.1[,"BC.Array"]=="TRUE"&forVenn.1[,"BC.ChIPseq"]==TRUE),]), file="Y:/Sottnik/Reports/v1.analysis/BC.both.RNA.ChIP.txt", sep="\t", col.names=FALSE, row.names=FALSE, quote=FALSE)
+```
+
+```{r,fig.height=8, fig.width=8, echo=FALSE}
+#head(a)
+vennDiagram(a.bladder, circle.col=c("red", "blue", "green"), counts.col="black", main="Differential Expression Candidates")
+```
+
+
+
+###3. Bladder ChIP-Seq & Differential Expression Overlap###
+
+Get a Venn Diagram for candidates in the bladder cancer ChIP-seq and differential expression analyses (gene symbol level).
+
+```{r, echo=FALSE, warning=FALSE}
+#save(forVenn.1, file="Y:/Sottnik/Reports/v1.analysis/bladderCancer.RNA.ChIP.3wayVenn.Rdata")
+load(file="Y:/Sottnik/Reports/v1.analysis/bladderCancer.RNA.ChIP.3wayVenn.Rdata")
+a.bladder = vennCounts(forVenn.1)
+```
+
+```{r,fig.height=8, fig.width=8, echo=FALSE}
+#head(a)
+vennDiagram(a.bladder, circle.col=c("red", "blue"), counts.col="black", main="Bladder Cancer")
+```
+
+**a. Hierarchical Clustering**
+
+This is taking the 97 genes and performing heirarchical clustering for the 97 candidates (based on gene expression)
+
+```{r, echo=FALSE, warning=FALSE}
+BC.array.cand.wAnno = read.table("Y:/Sottnik/Data/BC.array/AR.diffExpr.probesetToGene.tsv", sep="\t", header=TRUE)
+gene.Ensembl.key = read.table(file="Y:/Sottnik/Data/BC.array/diffExpr.geneSymbol2ensembl.txt", sep="\t", header=TRUE)
+key = merge(BC.array.cand.wAnno, gene.Ensembl.key, by.x = 2, by.y=2)
+
+BC97.overlap = rownames(forVenn.1[which(forVenn.1[,1]==TRUE & forVenn.1[,2]==TRUE),])
+
+forClustering = key[which(key[,"Ensembl.Gene.ID"] %in% as.matrix(BC97.overlap)), "Probe.Set.ID"]
+#there are 123 probesets that are candidates and correspond to the 97 genes;
+
+expr.forCluster = expr[which(rownames(expr) %in% as.matrix(forClustering)), 1:6]
+
+hclust = hclust(as.dist(1-abs(cor(t(expr.forCluster)))), method="average")
+
+plot(hclust, main="Clustering of Bladder Cancer Candidates")
+```
+
+**Question for Joe:** Is this what you had in mind for the hierarchical clustering?  We can apply a cut-heigh and create groups.
+
+**Enrichment Analysis**
+
+Used Panther and searched Pathways, and GO biological process, molecular funcation and cellular components.  
+
+![Panther Pathway Search](C:\Users\vanderll\Documents\PantherPathway.97bladderOverlap.png)
+
+![Panther Biological Process Search](C:\Users\vanderll\Documents\PantherBiologicalProcess.97bladderOverlap.png)
+
+![Panther Molecular Function Search](C:\Users\vanderll\Documents\PantherMolecularFunction.97bladderOverlap.png)
+
+![Panther Cellular Component Search](C:\Users\vanderll\Documents\PantherCellularComponent.97bladderOverlap.png)
+
+**c. Gene Signature & KM Analyses**
+
+
+| Dataset | Cancer | GEO ID | Array | 
+| :-----: | :----: | :----: |:-----:|
+| Bladder Cancer | CNUH cohort | GSE13507 | Illumina human-6 v2.0 | 
+| Bladder Cancer | MSKCC cohort | --- | Affy Human Genome U133 Plus 2.0  | 
+| Bladder Cancer | Lindgren | GSE19915 | Swegene Custom | 
+| Bladder Cancer | Blaveri | --- | Custom | 
+| Colorectal Cancer | CIT | GSE39582 | Affy Human Genome U133 Plus 2.0  | 
+| Colorectal Cancer | COL2 | GSE37892 | Affy Human Genome U133 Plus 2.0 | 
+| Colorectal Cancer | Domany | GSE41258 |Affymetrix Human Genome U133A | 
+| Colorectal Cancer | Sieber | GSE14333 |Affy Human Genome U133 Plus 2.0  | 
+| Colorectal Cancer | VMC |GSE17538 |Affy Human Genome U133 Plus 2.0  | 
+| Prostate Cancer | Sboner | GSE16560 | Illumina	Human 6k Transcriptionally Informative Gene Panel for DASL |
+| Prostate Cancer | Taylor | GSE21034 | Affy Human Exon 1.0 ST Array | 
+| Breast Cancer | Bos | GSE12276 |Affy Human Genome U133 Plus 2.0  | 
+| Lung Cancer | Duke | GSE3141 | Affy Human Genome U133 Plus 2.0 | 
+
+**KM Plots: Bladder Cancer Types**
+
+```{r, echo=FALSE, warning=FALSE}
+rm(list=ls())
+#options(stringAsFactors=FALSE)
+BC97.sig.ensembl = read.table(file="Y:/Sottnik/Reports/v1.analysis/BC.both.RNA.ChIP.txt", sep="\t")
+BC97.sig.geneSymbol = read.table(file="Y:/Sottnik/Reports/v1.analysis/BC.both.RNA.ChIP.geneSymbol.txt", sep="\t")
+load(file="Y:/Sottnik/Reports/v1.analysis/BC97.commonArrayPSwant.Rdata")
+```
+
+
+**Bladder Cancer CNUH Cohort (GSE13507)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+load(file="Y:/Sottnik/Data/BladderCancer.CNUH/Korea.Rdata")
+#GSE13507.expr[1:5, 1:5]
+#summary(GSE13507.OS.outcome)
+#summary(GSE13507.OS.time)
+
+#get the probesets to perform Cox proportional-hazard regression on;
+cnuh = GSE13507.expr[which(rownames(GSE13507.expr) %in% illumina6.BC97.ps), -which(is.na(GSE13507.OS.time))]
+cnuh.outcome = as.numeric(GSE13507.OS.outcome[!is.na(GSE13507.OS.outcome)])
+cnuh.time = as.numeric(GSE13507.OS.time[!is.na(GSE13507.OS.time)])
+
+CNUH.bladder.dss = GSE13507.expr[which(rownames(GSE13507.expr) %in% illumina6.BC97.ps), -which(is.na(GSE13507.DSS.time))]
+cnuh.outcome.dss = as.numeric(GSE13507.DSS.outcome[!is.na(GSE13507.DSS.outcome)])
+cnuh.time.dss = as.numeric(GSE13507.DSS.time[!is.na(GSE13507.DSS.time)])
+
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+#table(colnames(cit.2)==cit.pheno.2[,"Accession"])
+
+cox.byGene = apply(cnuh, 1, function(a) coxph(Surv(cnuh.time, cnuh.outcome) ~ a)$coefficients)
+cox.byGene.dss = apply(CNUH.bladder.dss, 1, function(a) coxph(Surv(cnuh.time.dss, cnuh.outcome.dss) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(cnuh))
+cnuh.sample.scores = apply(cnuh, 2, function(a) sum(a*cox.byGene))
+#hist(cnuh.sample.scores)
+
+cnuh.sample.scores.dss = apply(CNUH.bladder.dss, 2, function(a) sum(a*cox.byGene.dss))
+#hist(cnuh.sample.scores.dss)
+
+cnuh.high = names(cnuh.sample.scores[which(cnuh.sample.scores > median(cnuh.sample.scores))])
+cnuh.low = names(cnuh.sample.scores[which(cnuh.sample.scores <= median(cnuh.sample.scores))])
+
+cnuh.high.dss = names(cnuh.sample.scores.dss[which(cnuh.sample.scores.dss > median(cnuh.sample.scores.dss))])
+cnuh.low.dss = names(cnuh.sample.scores.dss[which(cnuh.sample.scores.dss <= median(cnuh.sample.scores.dss))])
+
+##Step3: Get Kaplan-Meier Plots;
+bladder.signature = c()
+for(i in 1:ncol(cnuh)){
+  if(colnames(cnuh)[i] %in% cnuh.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+bladder.signature.dss = c()
+for(i in 1:ncol(CNUH.bladder.dss)){
+  if(colnames(CNUH.bladder.dss)[i] %in% cnuh.high.dss){bladder.signature.dss[i]="Bladder High"}else{bladder.signature.dss[i]="Bladder Low"}
+}
+
+cnuh.bladder.surv <- survfit(Surv(cnuh.time, cnuh.outcome)~ as.factor(bladder.signature), conf.type="none")
+cnuh.cox <- coxph(Surv(cnuh.time, cnuh.outcome)~ as.factor(bladder.signature))
+
+cnuh.bladder.surv.dss <- survfit(Surv(cnuh.time.dss, cnuh.outcome.dss)~ as.factor(bladder.signature.dss), conf.type="none")
+cnuh.cox.dss <- coxph(Surv(cnuh.time.dss, cnuh.outcome.dss)~ as.factor(bladder.signature.dss))
+
+plot(cnuh.bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Bladder Cancer CNUH Cohort (GSE13507)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 9.56e-05"), fill= c("red", "blue", "white"),border="white", col=c("red", "blue", "black"))
+
+##### DSS ####
+
+plot(cnuh.bladder.surv.dss, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Disease-Specific Survival Predicted by 97 Bladder Genes\n Bladder Cancer CNUH Cohort (GSE13507)",lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("Bladder High", "Bladder Low", "p-value = 1.63e-06"), fill = c("red", "blue", "white"))
+```
+
+
+
+**Bladder Cancer MSKCC Cohort**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+load(file="Y:/Sottnik/Data/BladderCancer.MSKCC/SC.Rdata")
+
+#get the probesets to perform Cox proportional-hazard regression on;
+mskcc = SC.expr[which(rownames(SC.expr) %in% u133a.BC97.ps), -which(is.na(SC.OS.time))]
+mskcc.outcome = as.numeric(SC.OS.outcome[!is.na(SC.OS.time)])
+mskcc.time = as.numeric(SC.OS.time[!is.na(SC.OS.time)])
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+#table(colnames(cit.2)==cit.pheno.2[,"Accession"])
+
+cox.byGene = apply(mskcc, 1, function(a) coxph(Surv(mskcc.time, mskcc.outcome) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(mskcc))
+mskcc.sample.scores = apply(mskcc, 2, function(a) sum(a*cox.byGene))
+#hist(mskcc.sample.scores)
+
+mskcc.high = names(mskcc.sample.scores[which(mskcc.sample.scores > median(mskcc.sample.scores))])
+mskcc.low = names(mskcc.sample.scores[which(mskcc.sample.scores <= median(mskcc.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+bladder.signature = c()
+for(i in 1:ncol(mskcc)){
+  if(colnames(mskcc)[i] %in% mskcc.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+mskcc.bladder.surv <- survfit(Surv(mskcc.time, mskcc.outcome)~ as.factor(bladder.signature), conf.type="none")
+mskcc.cox <- coxph(Surv(mskcc.time, mskcc.outcome)~ as.factor(bladder.signature))
+
+plot(mskcc.bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Overall Survival Predicted by 97 Bladder Genes\n Bladder Cancer MSKCC Cohort", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("Bladder High", "Bladder Low", "p-value = 0.00127"), fill = c("red", "blue", "white"))
+
+```
+
+**Bladder Cancer Lindgren (GSE19915)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#rm(list=ls())
+load(file="Y:/Sottnik/Data/BladderCancer.Lindgren/Lindgren.Rdata")
+
+#get the probesets to perform Cox proportional-hazard regression on;
+lindgren = Lindgren.expr[which(rownames(Lindgren.expr) %in% as.matrix(BC97.sig.geneSymbol)), ]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+#table(colnames(cit.2)==cit.pheno.2[,"Accession"])
+
+cox.byGene = apply(lindgren, 1, function(a) coxph(Surv(Lindgren.time, Lindgren.outcome) ~ a)$coefficients)
+
+##Step2: Get Sample Lindgrenores;
+#table(names(cox.byGene)==rownames(lindgren))
+lindgren.sample.scores = apply(lindgren, 2, function(a) sum(a*cox.byGene))
+#hist(lindgren.sample.scores)
+
+lindgren.high = names(lindgren.sample.scores[which(lindgren.sample.scores > median(lindgren.sample.scores))])
+lindgren.low = names(lindgren.sample.scores[which(lindgren.sample.scores <= median(lindgren.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+bladder.signature = c()
+for(i in 1:ncol(lindgren)){
+  if(colnames(lindgren)[i] %in% lindgren.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+lindgren.bladder.surv <- survfit(Surv(Lindgren.time, Lindgren.outcome)~ as.factor(bladder.signature), conf.type="none")
+lindgren.cox <- coxph(Surv(Lindgren.time, Lindgren.outcome)~ as.factor(bladder.signature))
+
+plot(lindgren.bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Disease-Specific Survival Predicted by 97 Bladder Genes\n Bladder Cancer Lindgren Cohort (GSE19915)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("Bladder High", "Bladder Low", "p-value = 7.91e-06"), fill = c("red", "blue", "white"))
+```
+
+**Bladder Cancer Blaveri**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+load(file="Y:/Sottnik/Data/BladderCancer.Blaveri/Blaveri.Rdata")
+
+#get the probesets to perform Cox proportional-hazard regression on;
+Blaveri = Blaveri.expr[which(rownames(Blaveri.expr) %in% as.matrix(BC97.sig.geneSymbol)), ]
+
+##STEP1: Cox PH Regression;
+
+cox.byGene = apply(Blaveri, 1, function(a) coxph(Surv(Blaveri.time, Blaveri.outcome) ~ a)$coefficients)
+
+##Step2: Get Sample Blaveriores;
+#table(names(cox.byGene)==rownames(Blaveri))
+Blaveri.sample.scores = apply(Blaveri, 2, function(a) sum(a*cox.byGene, na.rm=TRUE))
+#hist(Blaveri.sample.Blaveriores)
+
+Blaveri.high = names(Blaveri.sample.scores[which(Blaveri.sample.scores > median(Blaveri.sample.scores))])
+Blaveri.low = names(Blaveri.sample.scores[which(Blaveri.sample.scores <= median(Blaveri.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+bladder.signature = c()
+for(i in 1:ncol(Blaveri)){
+  if(colnames(Blaveri)[i] %in% Blaveri.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+Blaveri.bladder.surv <- survfit(Surv(Blaveri.time, Blaveri.outcome)~ as.factor(bladder.signature), conf.type="none")
+Blaveri.cox <- coxph(Surv(Blaveri.time, Blaveri.outcome)~ as.factor(bladder.signature))
+
+plot(Blaveri.bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Overall Survival Predicted by 97 Bladder Genes\n Bladder Cancer Blaveri Cohort", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("topright", legend=c("Bladder High", "Bladder Low", "p-value = 0.0136"), fill = c("red", "blue", "white"))
+```
+
+**Colorectal Cancer: CIT (GSE39582)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data;
+#cit = read.table(file="Y:/Sottnik/Data/ColorectalCancer.CIT/data/GSE39582_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+#save(cit, file="Y:/Sottnik/Data/ColorectalCancer.CIT/data/cit.expr.Rdata")
+
+load("Y:/Sottnik/Data/ColorectalCancer.CIT/data/cit.expr.Rdata")
+cit.pheno = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.CIT/data/samplePhenoInfo.fromPaper.csv")
+cit.nameKey = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.CIT/data/sample.arrayName.GEOname.key.csv")
+cit.pheno.2 = merge(cit.nameKey, cit.pheno, by.x="Title", by.y="id")
+
+#get the ralA probesetsto perform Cox proportional-hazard regression on;
+cit.2 = cit[which(rownames(cit) %in% u133.plus2.BC97.ps),which(colnames(cit) %in% as.matrix(cit.pheno.2$Accession))]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+#table(colnames(cit.2)==cit.pheno.2[,"Accession"])
+
+cox.byGene = apply(cit.2, 1, function(a) coxph(Surv(cit.pheno.2$RFS.delay, cit.pheno.2$RFS.event) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(cit.2))
+cit.sample.scores = apply(cit.2, 2, function(a) sum(a*cox.byGene))
+#hist(cit.sample.scores)
+
+cit.high = names(cit.sample.scores[which(cit.sample.scores > median(cit.sample.scores))])
+cit.low = names(cit.sample.scores[which(cit.sample.scores <= median(cit.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#cit.high.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.event"])~ 1, conf.type="none")
+
+bladder.signature = c()
+for(i in 1:nrow(cit.pheno.2)){
+  if(cit.pheno.2[i,"Accession"] %in% cit.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+#cit.low.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.event"])~ 1, conf.type="none")
+
+
+cit.surv <- survfit(Surv(cit.pheno.2$RFS.delay, cit.pheno.2$RFS.event)~ as.factor(bladder.signature), conf.type="none")
+cit.cox <- coxph(Surv(cit.pheno.2$RFS.delay, cit.pheno.2$RFS.event)~ as.factor(bladder.signature))
+
+plot(cit.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes\n Colorectal Cancer CIT (GSE39582)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 4.92e-05"), fill = c("red", "blue", "white"))
+```
+
+**Colorectal Cancer: COL2 (GSE37892)**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+options(stringAsFactors=FALSE)
+#load in data;
+colorectal.COL2 = read.table(file="Y:/Sottnik/Data/ColorectalCancer.COL2/data/GSE37892_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+
+colorectal.COL2.pheno = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.COL2/data/samplePhenos.fromPaper.LV.csv")
+nameKey = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.COL2/data/sampleNameKey.csv")
+colorectal.COL2.pheno$tumorID = gsub(pattern="COL2_", replacement="",colorectal.COL2.pheno$Tumor.sample_ID)
+
+colorectal.COL2.pheno.2 = merge(nameKey, colorectal.COL2.pheno, by="tumorID",all.y=TRUE)
+
+#get the Bladder probesetsto perform Cox proportional-hazard regression on;
+col2 = colorectal.COL2[which(rownames(colorectal.COL2) %in% u133.plus2.BC97.ps),which(colnames(colorectal.COL2) %in% as.matrix(colorectal.COL2.pheno.2$array))]
+
+#table(colnames(col2)==colorectal.COL2.pheno.2$array)
+order = c()
+for(i in colnames(col2)){
+  order = c(order, which(colorectal.COL2.pheno.2[,"array"]==i))
+}
+colorectal.COL2.pheno.2 = colorectal.COL2.pheno.2[order,]
+#table(colnames(col2)==colorectal.COL2.pheno.2$array)
+
+
+###STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+COL2.cox.byGene = apply(col2, 1, function(a) coxph(Surv(colorectal.COL2.pheno.2$time_weeks, colorectal.COL2.pheno.2$event_death) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(COL2.cox.byGene)==rownames(colorectal.COL2.2))
+COL2.sample.scores = apply(col2, 2, function(a) sum(a*COL2.cox.byGene, na.rm=TRUE))
+#hist(COL2.sample.scores)
+
+COL2.high = names(COL2.sample.scores[which(COL2.sample.scores > median(COL2.sample.scores))])
+COL2.low = names(COL2.sample.scores[which(COL2.sample.scores <= median(COL2.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#cit.high.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.event"])~ 1, conf.type="none")
+
+COL2.colorectal.Bladdersignature = c()
+for(i in 1:nrow(colorectal.COL2.pheno.2)){
+  if(colorectal.COL2.pheno.2[i,"array"] %in% COL2.high){COL2.colorectal.Bladdersignature[i]="Bladder High"}else{COL2.colorectal.Bladdersignature[i]="Bladder Low"}
+}
+
+#cit.low.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.event"])~ 1, conf.type="none")
+
+
+COL2.Bladder.surv <- survfit(Surv(colorectal.COL2.pheno.2$time_weeks/4, colorectal.COL2.pheno.2$event_death)~ as.factor(COL2.colorectal.Bladdersignature), conf.type="none")
+
+COL2.Bladder.cox <- coxph(Surv(colorectal.COL2.pheno.2$time_weeks/4, colorectal.COL2.pheno.2$event_death)~ as.factor(COL2.colorectal.Bladdersignature))
+
+plot(COL2.Bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes \n Colorectal Cancer COL2 (GSE37892)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 5.0e-04"), fill = c("red", "blue", "white"))
+```
+
+**TO DO** I could only find phenotype data on about half the arrays.  I think there is some formatting errors with the sample name to array name identification.  I will look into this. 
+
+**Colorectal Cancer: Domany (GSE41258)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data;
+colorectal.Domany = read.table(file="Y:/Sottnik/Data/ColorectalCancer.Domany/data/GSE41258_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+
+colorectal.Domany.pheno = read.table(file="Y:/Sottnik/Data/ColorectalCancer.Domany/data/GSE41258_clinical_data.LV.txt", sep="\t", header=TRUE)
+colorectal.Domany.pheno$event = as.numeric(colorectal.Domany.pheno[,10]!="NED")
+
+nameKey = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.Domany/data/sampleNameKey.csv")
+test = strsplit(as.character(nameKey[,"description"]), split=" ", fixed=TRUE)
+#find length, get last input;
+place = unlist(lapply(test, length))
+
+patient = c()
+for(i in 1:nrow(nameKey)){
+  patient = c(patient, substring(test[[i]][place[i]], 1, 5))
+  
+}
+
+nameKey$patient = patient
+
+colorectal.Domany.pheno.2 = merge(nameKey, colorectal.Domany.pheno, by.x="patient", by.y="Patient.ID")
+
+#get the Bladder probesetsto perform Cox proportional-hazard regression on;
+#source("https://bioconductor.org/biocLite.R")
+#biocLite("hgu133a.db")
+library(hgu133a.db)
+x <- hgu133aENSEMBL
+# Get the entrez gene IDs that are mapped to an Ensembl ID
+mapped_genes <- mappedkeys(x)
+# Convert to a list
+xx <- as.list(x[mapped_genes])
+test = lapply(xx, function(a) a[1])
+u133.a.annoKey = as.matrix(unlist(test)) 
+colnames(u133.a.annoKey) = "ensembl"
+
+u133.a.Bladder.ps = names(u133.a.annoKey[which(u133.a.annoKey[,1] %in% as.matrix(BC97.sig.ensembl)),])
+
+Domany = colorectal.Domany[which(rownames(colorectal.Domany) %in% u133.a.Bladder.ps),which(colnames(colorectal.Domany) %in% as.matrix(colorectal.Domany.pheno.2$array))]
+
+#table(colnames(Domany)==colorectal.Domany.pheno.2$array)
+order = c()
+for(i in colnames(Domany)){
+  order = c(order, which(colorectal.Domany.pheno.2[,"array"]==i))
+}
+
+colorectal.Domany.pheno.2 = colorectal.Domany.pheno.2[order,]
+#table(colnames(Domany)==colorectal.Domany.pheno.2$array)
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+Domany.cox.byGene = apply(Domany, 1, function(a) coxph(Surv(colorectal.Domany.pheno.2$Fup.Interval, colorectal.Domany.pheno.2$event) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(Domany.cox.byGene)==rownames(colorectal.Domany.2))
+Domany.sample.scores = apply(Domany, 2, function(a) sum(a*Domany.cox.byGene, na.rm=TRUE))
+#hist(Domany.sample.scores)
+
+Domany.high = names(Domany.sample.scores[which(Domany.sample.scores > median(Domany.sample.scores))])
+Domany.low = names(Domany.sample.scores[which(Domany.sample.scores <= median(Domany.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#cit.high.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.event"])~ 1, conf.type="none")
+
+Domany.colorectal.Bladdersignature = c()
+for(i in 1:nrow(colorectal.Domany.pheno.2)){
+  if(colorectal.Domany.pheno.2[i,"array"] %in% Domany.high){Domany.colorectal.Bladdersignature[i]="Bladder High"}else{Domany.colorectal.Bladdersignature[i]="Bladder Low"}
+}
+
+#cit.low.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Domany.Bladder.surv <- survfit(Surv(colorectal.Domany.pheno.2$Fup.Interval, colorectal.Domany.pheno.2$event)~ as.factor(Domany.colorectal.Bladdersignature), conf.type="none")
+
+Domany.Bladder.cox <- coxph(Surv(colorectal.Domany.pheno.2$Fup.Interval, colorectal.Domany.pheno.2$event)~ as.factor(Domany.colorectal.Bladdersignature))
+
+plot(Domany.Bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes \n Colorectal Cancer Domany (GSE41258)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 3.39e-08"), fill = c("red", "blue", "white"))
+```
+
+**Colorectal Cancer: Sieber (GSE14333)**
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data;
+colorectal.Sieber = read.table(file="Y:/Sottnik/Data/ColorectalCancer.Sieber/data/GSE14333_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+
+colorectal.Sieber.pheno = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.Sieber/data/samplePhenos.v2.csv")
+colorectal.Sieber.pheno$array = gsub(pattern=".CEL", replacement="", colorectal.Sieber.pheno$Samples.ID)
+
+
+#get the Bladder probesetsto perform Cox proportional-hazard regression on;
+Sieber = colorectal.Sieber[which(rownames(colorectal.Sieber) %in% u133.plus2.BC97.ps),which(colnames(colorectal.Sieber) %in% as.matrix(colorectal.Sieber.pheno$array))]
+
+order=c()
+for(i in colnames(Sieber)){
+  order = c(order, which(colorectal.Sieber.pheno[,"array"]==i))
+}
+colorectal.Sieber.pheno.2 = colorectal.Sieber.pheno[order,]
+#table(colnames(Sieber)==colorectal.Sieber.pheno.2$array)
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+Sieber.cox.byGene = apply(Sieber, 1, function(a) coxph(Surv(colorectal.Sieber.pheno.2$dfs.in.months, colorectal.Sieber.pheno.2$censor) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(Sieber.cox.byGene)==rownames(colorectal.Sieber.2))
+Sieber.sample.scores = apply(Sieber, 2, function(a) sum(a*Sieber.cox.byGene, na.rm=TRUE))
+#hist(Sieber.sample.scores)
+
+Sieber.high = names(Sieber.sample.scores[which(Sieber.sample.scores > median(Sieber.sample.scores))])
+Sieber.low = names(Sieber.sample.scores[which(Sieber.sample.scores <= median(Sieber.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#cit.high.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.event"])~ 1, conf.type="none")
+
+Sieber.colorectal.Bladdersignature = c()
+for(i in 1:nrow(colorectal.Sieber.pheno.2)){
+  if(colorectal.Sieber.pheno.2[i,"array"] %in% Sieber.high){Sieber.colorectal.Bladdersignature[i]="Bladder High"}else{Sieber.colorectal.Bladdersignature[i]="Bladder Low"}
+}
+
+#cit.low.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Sieber.Bladder.surv <- survfit(Surv(colorectal.Sieber.pheno.2$dfs.in.months, colorectal.Sieber.pheno.2$censor)~ as.factor(Sieber.colorectal.Bladdersignature), conf.type="none")
+
+Sieber.Bladder.cox <- coxph(Surv(colorectal.Sieber.pheno.2$dfs.in.months, colorectal.Sieber.pheno.2$censor)~ as.factor(Sieber.colorectal.Bladdersignature))
+
+plot(Sieber.Bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Desease-Free Survival Predicted by 97 Bladder Genes\n Colorectal Cancer Sieber (GSE14333)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 1.75e-09"), fill = c("red", "blue", "white"))
+```
+
+**Colorectal Cancer: VMC (GSE17538)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data;
+colorectal.VMC = read.table(file="Y:/Sottnik/Data/ColorectalCancer.VMC/data/GSE17538-GPL570_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+
+colorectal.VMC.pheno = read.csv(file="Y:/Sottnik/Data/ColorectalCancer.VMC/data/GSE17538.GPL570.pheno.csv")
+
+#head(colorectal.VMC.pheno$X)
+#table(colnames(colorectal.VMC)==colorectal.VMC.pheno$X)
+
+event=matrix(ncol=1, nrow=nrow(colorectal.VMC.pheno))
+event[grep(pattern="no recurrence", colorectal.VMC.pheno$characteristics_ch1.7),1]=1
+event[is.na(event)] <- 0 
+colorectal.VMC.pheno$event = event
+
+time.list = strsplit(as.character(colorectal.VMC.pheno$characteristics_ch1.8), split=": ", fixed=TRUE)
+time.length = unlist(lapply(time.list, length))
+
+time = matrix(nrow=nrow(colorectal.VMC.pheno), ncol=1)
+for(i in 1:length(time.length)){
+  if(time.length[i]==2){time[i,1]=as.numeric(time.list[[i]][2])}else{is.na(time[i,1])}
+}
+colorectal.VMC.pheno$time = time
+
+#get the Bladder probesetsto perform Cox proportional-hazard regression on;
+VMC = colorectal.VMC[which(rownames(colorectal.VMC) %in% u133.plus2.BC97.ps),]
+
+#table(colnames(VMC)==colorectal.VMC.pheno$X)
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH)
+
+VMC.cox.byGene = apply(VMC, 1, function(a) coxph(Surv(colorectal.VMC.pheno$time, colorectal.VMC.pheno$event) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(VMC.cox.byGene)==rownames(colorectal.VMC.2))
+VMC.sample.scores = apply(VMC, 2, function(a) sum(a*VMC.cox.byGene, na.rm=TRUE))
+#hist(VMC.sample.scores)
+#abline(v=844.4)
+#summary(VMC.sample.scores)
+VMC.high = names(VMC.sample.scores[which(VMC.sample.scores > median(VMC.sample.scores))])
+VMC.low = names(VMC.sample.scores[which(VMC.sample.scores <= median(VMC.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#cit.high.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.high), "RFS.event"])~ 1, conf.type="none")
+
+VMC.colorectal.Bladdersignature = c()
+for(i in 1:nrow(colorectal.VMC.pheno)){
+  if(colorectal.VMC.pheno[i,"X"] %in% VMC.high){VMC.colorectal.Bladdersignature[i]="Bladder High"}else{VMC.colorectal.Bladdersignature[i]="Bladder Low"}
+}
+
+#cit.low.surv <- survfit(Surv(cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.delay"], cit.pheno.2[which(cit.pheno.2$Accession %in% cit.low), "RFS.event"])~ 1, conf.type="none")
+
+
+VMC.Bladder.surv <- survfit(Surv(colorectal.VMC.pheno$time, colorectal.VMC.pheno$event)~ as.factor(VMC.colorectal.Bladdersignature), conf.type="none")
+
+VMC.Bladder.cox <- coxph(Surv(colorectal.VMC.pheno$time, colorectal.VMC.pheno$event)~ as.factor(VMC.colorectal.Bladdersignature))
+
+plot(VMC.Bladder.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Disease-Free Survival Predicted by 97 Bladder Genes \n Colorectal Cancer VMC (GSE17538)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 9.63e-10"), fill = c("red", "blue", "white"))
+```
+
+**Prostate Cancer: Sboner (GSE16560)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data;
+#Sboner = read.table(file="Y:/Sottnik/Data/ProstateCancer.Sboner/data/GSE16560_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+#save(Sboner, file="Y:/Sottnik/Data/ProstateCancer.Sboner/data/Sboner.project.Rdata")
+
+load("Y:/Sottnik/Data/Prostate.Sboner/Sboner.project.Rdata")
+#table(pd.Sboner$geo_accession==colnames(expr.Sboner))
+
+#get the BC97 candidate genes to perform Cox proportional-hazard regression on;
+Sboner.arrayWant = Sboner.arrayInfo[which(Sboner.arrayInfo$Symbol %in% as.matrix(BC97.sig.geneSymbol)),]
+Sboner.psWant = as.matrix(Sboner.arrayWant$ID)
+Sboner.2 = expr.Sboner[which(rownames(expr.Sboner) %in% Sboner.psWant),]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH) 
+
+#table(colnames(Sboner.2)==Sboner.pheno.2[,"Accession"])
+
+pd.Sboner$time = as.numeric(gsub("fup.month: ", "", pd.Sboner$characteristics_ch1.9)) 
+pd.Sboner$eventCharacter = gsub("status.all: ", "", pd.Sboner$characteristics_ch1.8)
+
+event = c()
+for(i in 1:length(pd.Sboner$eventCharacter)){
+  if(pd.Sboner[i,"eventCharacter"]=="Dead"){event[i]=1}else{event[i]=0}
+}
+pd.Sboner$event = event
+
+cox.byGene = apply(Sboner.2, 1, function(a) coxph(Surv(pd.Sboner$time, pd.Sboner$event) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(Sboner.2))
+Sboner.sample.scores = apply(Sboner.2, 2, function(a) sum(a*cox.byGene))
+#hist(Sboner.sample.scores)
+
+Sboner.high = names(Sboner.sample.scores[which(Sboner.sample.scores > median(Sboner.sample.scores))])
+Sboner.low = names(Sboner.sample.scores[which(Sboner.sample.scores <= median(Sboner.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#Sboner.high.surv <- survfit(Surv(Sboner.pheno.2[which(Sboner.pheno.2$Accession %in% Sboner.high), "RFS.delay"], Sboner.pheno.2[which(Sboner.pheno.2$Accession %in% Sboner.high), "RFS.event"])~ 1, conf.type="none")
+
+bladder.signature = c()
+for(i in 1:nrow(pd.Sboner)){
+  if(pd.Sboner[i,"geo_accession"] %in% Sboner.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+#Sboner.low.surv <- survfit(Surv(Sboner.pheno.2[which(Sboner.pheno.2$Accession %in% Sboner.low), "RFS.delay"], Sboner.pheno.2[which(Sboner.pheno.2$Accession %in% Sboner.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Sboner.surv <- survfit(Surv(pd.Sboner$time, pd.Sboner$event)~ as.factor(bladder.signature), conf.type="none")
+Sboner.cox <- coxph(Surv(pd.Sboner$time, pd.Sboner$event)~ as.factor(bladder.signature))
+
+plot(Sboner.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes\n Prostate Cancer Sboner (GSE16560)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 7.01e-07"), fill = c("red", "blue", "white"))
+```
+
+**Prostate Cancer: Taylor (GSE21034)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE}
+#Taylor has HUGE data, so run this on sysgen# 
+
+#get the gene symbols that we want;
+BC97 = read.table(file="/data/home/vanderll/Sottnik/Reports/v1.analysis/BC.both.RNA.ChIP.geneSymbol.txt", sep="\t")
+
+#load in Taylor data;
+Taylor = read.table(file="/data/home/vanderll/Sottnik/Data/Prostate.Taylor/GSE21034-GPL5188_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+
+pd.Taylor = read.csv(file="/data/home/vanderll/Sottnik/Data/Prostate.Taylor/prostateTaylor.clinicalDat.csv")
+pd.Taylor2 = pd.Taylor[-which(is.na(pd.Taylor$SurvTime)),]
+
+nameKey = read.csv(file="/data/home/vanderll/Sottnik/Data/Prostate.Taylor/geoAccessionSampleNameKey.csv")
+nameKey$Sample.ID = gsub("Prostate tumor ", "", nameKey$sample_description)
+nameKey$Sample.ID = gsub(" exon", "", nameKey$Sample.ID)
+
+pd.Taylor2 = merge(nameKey, pd.Taylor2, by="Sample.ID")
+Taylor = Taylor[,which(colnames(Taylor) %in% pd.Taylor2$geo_accession)]
+#dim(pd.Taylor2)
+#dim(Taylor)
+
+table(colnames(Taylor)==pd.Taylor2$geo_accession)
+
+anno = read.table(file="/data/home/vanderll/annotation/GPL5188-122.txt", sep="\t",header=TRUE)
+dim(anno)
+head(anno)
+
+anno2 = anno[,c("ID", "gene_assignment")]
+
+test = unlist(lapply(strsplit(as.character(anno2$gene_assignment), split=" // ", fixed=TRUE), function(a) a[2]))
+
+annoWant = anno[which(test %in% as.matrix(BC97)), "ID"]
+
+Taylor2 = Taylor[which(rownames(Taylor) %in% annoWant),]
+
+save(pd.Taylor2, Taylor2, file="/data/home/vanderll/Sottnik/Data/Prostate.Taylor/Taylor.project.Rdata")
+```
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+load("Y:/Sottnik/Data/Prostate.Taylor/Taylor.project.Rdata")
+#table(pd.Taylor$geo_accession==colnames(expr.Taylor))
+
+#get the BC97 candidate genes to perform Cox proportional-hazard regression on;
+#Taylor.arrayWant = Taylor.arrayInfo[which(Taylor.arrayInfo$Symbol %in% as.matrix(BC97.sig.geneSymbol)),]
+#Taylor.psWant = as.matrix(Taylor.arrayWant$ID)
+#Taylor.2 = expr.Taylor[which(rownames(expr.Taylor) %in% Taylor.psWant),]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH) 
+
+cox.byGene = apply(Taylor2, 1, function(a) coxph(Surv(pd.Taylor2$BCR_FreeTime, as.numeric(as.logical(pd.Taylor2$BCR_Event!="NO"))) ~ a)$coefficients)
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(Taylor.2))
+Taylor.sample.scores = apply(Taylor2, 2, function(a) sum(a*cox.byGene))
+#hist(Taylor.sample.scores)
+
+Taylor.high = names(Taylor.sample.scores[which(Taylor.sample.scores > median(Taylor.sample.scores))])
+Taylor.low = names(Taylor.sample.scores[which(Taylor.sample.scores <= median(Taylor.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#Taylor.high.surv <- survfit(Surv(Taylor.pheno.2[which(Taylor.pheno.2$Accession %in% Taylor.high), "RFS.delay"], Taylor.pheno.2[which(Taylor.pheno.2$Accession %in% Taylor.high), "RFS.event"])~ 1, conf.type="none")
+
+bladder.signature = c()
+for(i in 1:nrow(pd.Taylor2)){
+  if(pd.Taylor2[i,"geo_accession"] %in% Taylor.high){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+#Taylor.low.surv <- survfit(Surv(Taylor.pheno.2[which(Taylor.pheno.2$Accession %in% Taylor.low), "RFS.delay"], Taylor.pheno.2[which(Taylor.pheno.2$Accession %in% Taylor.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Taylor.surv <- survfit(Surv(pd.Taylor2$BCR_FreeTime, as.numeric(as.logical(pd.Taylor2$BCR_Event!="NO")))~ as.factor(bladder.signature), conf.type="none")
+Taylor.cox <- coxph(Surv(pd.Taylor2$BCR_FreeTime, as.numeric(as.logical(pd.Taylor2$BCR_Event!="NO")))~ as.factor(bladder.signature))
+
+plot(Taylor.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes\n Prostate Cancer Taylor (GSE21034)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+par(font=1) 
+legend("bottomleft", legend=c("High", "Low", "p-value = 5.61e-05"), fill = c("red", "blue", "white"))
+```
+
+
+**Breast Cancer: Bos (GSE12276)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data and get subjects we want (do this on sysgen);
+#setwd("/data/home/vanderll/Sottnik/Data/BreastCancer.Bos")
+#Bos = read.table(file="GSE12276_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+#Bos.pd = read.csv(file="GSE12276_pheno.csv")
+#time  = as.vector(read.csv(file="GSE12276_survivalTime.csv", row.names=1))
+#event = rep(1, ncol(time))
+
+#save(Bos, Bos.pd, time, event, file="/data/home/vanderll/Sottnik/Data/BreastCancer.Bos/Bos.project.Rdata")
+
+load("Y:/Sottnik/Data/BreastCancer.Bos/Bos.project.Rdata")
+#table(pd.Sboner$geo_accession==colnames(expr.Sboner))
+
+#get the BC97 candidate genes to perform Cox proportional-hazard regression on;
+Bos2 = Bos[which(rownames(Bos) %in% u133.plus2.BC97.ps),]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH) 
+
+#table(colnames(Sboner.2)==Sboner.pheno.2[,"Accession"])
+Bos.pd = cbind(t(time), event)
+cox.byGene = apply(Bos2, 1, function(a) coxph(Surv(Bos.pd[,"survivaTime.months"], Bos.pd[,"event"]) ~ a)$coefficients)
+
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(Bos.2))
+Bos.sample.scores = apply(Bos2, 2, function(a) sum(a*cox.byGene))
+#hist(Bos.sample.scores)
+
+Bos.high = names(Bos.sample.scores[which(Bos.sample.scores > median(Bos.sample.scores))])
+Bos.low = names(Bos.sample.scores[which(Bos.sample.scores <= median(Bos.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#Bos.high.surv <- survfit(Surv(Bos.pheno.2[which(Bos.pheno.2$Accession %in% Bos.high), "RFS.delay"], Bos.pheno.2[which(Bos.pheno.2$Accession %in% Bos.high), "RFS.event"])~ 1, conf.type="none")
+
+bladder.signature = c()
+for(i in 1:nrow(Bos.pd)){
+  if(rownames(Bos.pd)[i] %in% as.matrix(Bos.high)){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+#Bos.low.surv <- survfit(Surv(Bos.pheno.2[which(Bos.pheno.2$Accession %in% Bos.low), "RFS.delay"], Bos.pheno.2[which(Bos.pheno.2$Accession %in% Bos.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Bos.surv <- survfit(Surv(Bos.pd[,"survivaTime.months"], Bos.pd[,"event"])~ as.factor(bladder.signature), conf.type="none")
+Bos.cox <- coxph(Surv(Bos.pd[,"survivaTime.months"], Bos.pd[,"event"])~ as.factor(bladder.signature))
+
+plot(Bos.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes\n Breast Cancer Bos (GSE12276)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+legend("topright", legend=c("High", "Low", "p-value = 2.5E-08"), fill= c("red", "blue", "white"))
+
+```
+
+**Lung Cancer: Duke (GSE3141)**
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE}
+#load in data and get subjects we want (do this on sysgen);
+#setwd("/data/home/vanderll/Sottnik/Data/LungCancer.Duke")
+#Duke = read.table(file="GSE3141_series_matrix.txt", sep="\t", comment="!", header=TRUE, row.names=1)
+#Duke.pd = read.csv(file="GSE3141_pheno.csv")
+
+#survInfo = read.csv(file="GSE3141_survInfo.csv", row.names=1)
+#table(colnames(survInfo) == colnames(Duke))
+
+#forAnalysis = cbind(t(survInfo[1,]), t(survInfo[2,]))
+#time  = as.vector(read.csv(file="GSE12276_survivalTime.csv", row.names=1))
+#event = rep(1, ncol(time))
+
+#save(Duke, Duke.pd, survInfo, forAnalysis, file="/data/home/vanderll/Sottnik/Data/LungCancer.Duke/Duke.project.Rdata")
+
+load("Y:/Sottnik/Data/LungCancer.Duke/Duke.project.Rdata")
+#table(pd.Sboner$geo_accession==colnames(expr.Sboner))
+
+#get the BC97 candidate genes to perform Cox proportional-hazard regression on;
+Duke2 = Duke[which(rownames(Duke) %in% u133.plus2.BC97.ps),]
+
+##STEP1: Cox PH Regression;
+library(survival)
+library(simPH) 
+
+#table(colnames(Sboner.2)==Sboner.pheno.2[,"Accession"])
+cox.byGene = apply(Duke2, 1, function(a) coxph(Surv(as.numeric(forAnalysis[,"time"]), as.numeric(forAnalysis[,"event"])) ~ a)$coefficients)
+
+
+##Step2: Get Sample Scores;
+#table(names(cox.byGene)==rownames(Duke.2))
+Duke.sample.scores = apply(Duke2, 2, function(a) sum(a*cox.byGene))
+#hist(Duke.sample.scores)
+
+Duke.high = names(Duke.sample.scores[which(Duke.sample.scores > median(Duke.sample.scores))])
+Duke.low = names(Duke.sample.scores[which(Duke.sample.scores <= median(Duke.sample.scores))])
+
+##Step3: Get Kaplan-Meier Plots;
+#Duke.high.surv <- survfit(Surv(Duke.pheno.2[which(Duke.pheno.2$Accession %in% Duke.high), "RFS.delay"], Duke.pheno.2[which(Duke.pheno.2$Accession %in% Duke.high), "RFS.event"])~ 1, conf.type="none")
+
+bladder.signature = c()
+for(i in 1:ncol(Duke)){
+  if(colnames(Duke)[i] %in% as.matrix(Duke.high)){bladder.signature[i]="Bladder High"}else{bladder.signature[i]="Bladder Low"}
+}
+
+#Duke.low.surv <- survfit(Surv(Duke.pheno.2[which(Duke.pheno.2$Accession %in% Duke.low), "RFS.delay"], Duke.pheno.2[which(Duke.pheno.2$Accession %in% Duke.low), "RFS.event"])~ 1, conf.type="none")
+
+
+Duke.surv <- survfit(Surv(as.numeric(forAnalysis[,"time"]), as.numeric(forAnalysis[,"event"]))~ as.factor(bladder.signature), conf.type="none")
+Duke.cox <- coxph(Surv(as.numeric(forAnalysis[,"time"]), as.numeric(forAnalysis[,"event"]))~ as.factor(bladder.signature))
+
+plot(Duke.surv, col=c("red", "blue"),xlab="Time", ylab="Survival Probability", main="Survival Predicted By 97 Bladder Genes\n Lung Cancer Duke (GSE3141)", lwd=3.5, font=1, font.lab=1, cex.main=1.5, cex=1, cex.lab=1, cex.axis=1)
+legend("bottomleft", legend=c("High", "Low", "p-value = 9.56E-12"), fill= c("red", "blue", "white"))
+```
+
+
+**Alveolar Rhabdomyosarcoma: Davicioni (GSE92689)**
+
+I have event status (dead or alive), but only have age.  I don't have age of onset...  Going to try to track this down and if not I'll move ahead and look at a different study.  This one was nice since it had an n=186 and run on a common array platform.    
+
+```{r, echo=FALSE, warning=FALSE, message=FALSE, eval=FALSE}
+library("GEOquery")
+gse=getGEO(filename="Y:/Sottnik/Data/AlveolarRhabdomyosarcoma.Davicioni/data/GSE92689_series_matrix.txt.gz")
+dim(gse)
+pheno = pData(gse)
+```
+
+###4. AR negative cell lines###
+
+###5. Sub-library validation and elucidation###
+
+Please see the shRNA and ORF specific reports.  
+
+###6. Results of sub-library screening###
+
+Thoughts on this?  
+
+###7. Individual Gene Validation###
+
+
